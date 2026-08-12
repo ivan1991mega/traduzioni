@@ -80,6 +80,35 @@ function extractJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 529]);
+const MAX_RETRIES = 3;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Riprova automaticamente le chiamate all'API Anthropic in caso di sovraccarico
+// temporaneo (529) o rate limit (429), con backoff esponenziale + jitter.
+async function callClaudeWithRetry(params) {
+  let lastErr;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await anthropic.messages.create(params);
+    } catch (err) {
+      lastErr = err;
+      const status = err && err.status;
+      const isRetryable = RETRYABLE_STATUS.has(status);
+      if (!isRetryable || attempt === MAX_RETRIES) {
+        throw err;
+      }
+      const backoff = 500 * Math.pow(2, attempt) + Math.random() * 300;
+      console.warn(`Chiamata Anthropic fallita (status ${status}), riprovo tra ${Math.round(backoff)}ms [tentativo ${attempt + 1}/${MAX_RETRIES}]`);
+      await sleep(backoff);
+    }
+  }
+  throw lastErr;
+}
+
 app.post('/api/translate', async (req, res) => {
   try {
     const text = (req.body && req.body.text || '').toString().trim();
@@ -100,7 +129,7 @@ app.post('/api/translate', async (req, res) => {
 
     const userMessage = `Lingua di destinazione richiesta: ${LANG_LABELS[targetLang]} (${targetLang})\n\nTesto da tradurre:\n${text}`;
 
-    const response = await anthropic.messages.create({
+    const response = await callClaudeWithRetry({
       model: MODEL,
       max_tokens: 800,
       system: SYSTEM_PROMPT,
@@ -150,6 +179,18 @@ app.post('/api/translate', async (req, res) => {
     res.json(entry);
   } catch (err) {
     console.error('Errore traduzione:', err);
+
+    const status = err && err.status;
+    if (status === 401 || status === 403) {
+      return res.status(500).json({ error: 'Chiave API non valida o non autorizzata. Controlla ANTHROPIC_API_KEY.' });
+    }
+    if (err && err.error && err.error.error && err.error.error.message && /credit balance/i.test(err.error.error.message)) {
+      return res.status(500).json({ error: 'Credito Anthropic esaurito. Ricarica il saldo su console.anthropic.com.' });
+    }
+    if (status === 529 || status === 429) {
+      return res.status(503).json({ error: 'Il servizio di traduzione e\' momentaneamente sovraccarico. Riprova tra qualche secondo.' });
+    }
+
     res.status(500).json({ error: 'Errore durante la traduzione. Riprova tra poco.' });
   }
 });
