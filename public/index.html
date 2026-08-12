@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#163642">
+<title>Lenza — Traduttore per articoli da pesca</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-top">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M6 20c4-10 12-14 20-10 6 3 8 9 4 13-3 3-8 2-9-2-1-3 1-5 3-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="33" cy="12" r="1.6" fill="currentColor"/>
+        </svg>
+        <span>Lenza</span>
+      </div>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Cambia tema chiaro/scuro" title="Cambia tema">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 12H1.8M22.2 12h-2.4M6 6l1.7 1.7M16.3 16.3 18 18M18 6l-1.7 1.7M7.7 16.3 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <p class="hero-tag">Traduzioni IT · EN · 日本語 per schede prodotto di canne, mulinelli, esche e artificiali</p>
+  </div>
+</header>
+
+<main class="app">
+
+  <div class="target-select">
+    <span class="target-select-label">Traduci verso</span>
+    <div class="lang-toggle" id="lang-toggle" role="group" aria-label="Lingua di destinazione">
+      <button type="button" class="lang-btn" data-lang="it">Italiano</button>
+      <button type="button" class="lang-btn" data-lang="en">English</button>
+      <button type="button" class="lang-btn" data-lang="ja">日本語</button>
+    </div>
+  </div>
+
+  <section class="workbench" aria-label="Traduttore">
+    <div class="panel panel-source">
+      <div class="panel-head">
+        <span class="eyebrow" id="source-lang-label">Testo originale</span>
+        <span class="lang-pill" id="detected-lang">rileva lingua…</span>
+      </div>
+      <textarea id="source-text" maxlength="2000" placeholder="Incolla qui la descrizione dell'articolo, oppure detta con il microfono. Es: «Canna da spinning in carbonio, azione veloce, ideale per artificiali leggeri fino a 15g...»"></textarea>
+      <p id="long-input-hint" class="long-input-hint" hidden>Il testo è più lungo di 500 caratteri: la traduzione sarà una sintesi che darà priorità ai dati tecnici (materiali, misure, peso, azione, specie target).</p>
+      <div class="panel-foot">
+        <div class="foot-actions">
+          <button id="translate-btn" class="btn-primary">
+            <span class="btn-label">Traduci</span>
+            <svg viewBox="0 0 20 20" fill="none" class="btn-icon" aria-hidden="true"><path d="M3 10h13M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="mic-btn" class="btn-mic" type="button" title="Detta il testo" aria-label="Registra con il microfono">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </button>
+          <select id="mic-lang" class="mic-lang-select" aria-label="Lingua del microfono">
+            <option value="it-IT">IT</option>
+            <option value="en-US">EN</option>
+            <option value="ja-JP">JA</option>
+          </select>
+        </div>
+        <span id="input-count" class="input-count">0 caratteri</span>
+      </div>
+    </div>
+
+    <div class="gauge-column" aria-hidden="true">
+      <div class="gauge-label-top">0</div>
+      <div class="gauge" id="gauge">
+        <div class="gauge-track"></div>
+        <div class="gauge-fill" id="gauge-fill"></div>
+        <div class="gauge-lure" id="gauge-lure"></div>
+      </div>
+      <div class="gauge-label-bottom">500</div>
+      <div class="gauge-caption">scandaglio<br>caratteri</div>
+    </div>
+
+    <div class="panel panel-result">
+      <div class="panel-head">
+        <span class="eyebrow">Traduzione</span>
+        <span class="lang-pill" id="target-lang">—</span>
+      </div>
+      <div id="result-text" class="result-text" data-empty="true">La traduzione comparirà qui.</div>
+      <div class="panel-foot">
+        <button id="copy-btn" class="btn-secondary" disabled>Copia</button>
+        <span id="result-count" class="input-count">0 / 500 caratteri</span>
+      </div>
+    </div>
+  </section>
+
+  <p id="error-banner" class="error-banner" hidden></p>
+
+  <section class="logbook" aria-label="Registro traduzioni">
+    <div class="logbook-head">
+      <h2>Registro di pesca</h2>
+      <button id="clear-history-btn" class="btn-ghost">Svuota registro</button>
+    </div>
+    <div id="history-list" class="logbook-list">
+      <p class="logbook-empty" id="history-empty">Ancora nessuna traduzione registrata. Le tue traduzioni compariranno qui, come voci di un diario di pesca.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="app-footer">
+  <span>Lenza · powered by Claude</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
