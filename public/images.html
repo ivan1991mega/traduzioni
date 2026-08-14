@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#163642">
+<title>Lenza — Ridimensiona immagini 850×566</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="image-tool.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-top">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M6 20c4-10 12-14 20-10 6 3 8 9 4 13-3 3-8 2-9-2-1-3 1-5 3-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="33" cy="12" r="1.6" fill="currentColor"/>
+        </svg>
+        <span>Lenza</span>
+      </div>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Cambia tema chiaro/scuro" title="Cambia tema">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 12H1.8M22.2 12h-2.4M6 6l1.7 1.7M16.3 16.3 18 18M18 6l-1.7 1.7M7.7 16.3 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <p class="hero-tag">Ritaglia e ridimensiona le foto dei tuoi articoli a 850×566 px, leggere e pronte per il web</p>
+    <nav class="site-nav">
+      <a href="index.html" class="nav-link">Traduttore</a>
+      <a href="images.html" class="nav-link active">Immagini</a>
+    </nav>
+  </div>
+</header>
+
+<main class="app">
+
+  <div id="dropzone" class="dropzone">
+    <input type="file" id="file-input" accept="image/*" multiple hidden>
+    <svg viewBox="0 0 24 24" fill="none" class="dropzone-icon" aria-hidden="true">
+      <path d="M12 16V4M12 4 7 9M12 4l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <p class="dropzone-text"><strong>Trascina qui le immagini</strong> oppure tocca per scegliere i file</p>
+    <p class="dropzone-sub">Puoi caricarne più di una alla volta · JPG, PNG, WebP</p>
+  </div>
+
+  <section id="batch-bar" class="batch-bar" hidden>
+    <div class="batch-controls">
+      <label class="batch-field">
+        <span>Formato</span>
+        <select id="format-select">
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/webp">WebP</option>
+        </select>
+      </label>
+      <label class="batch-field batch-field-quality">
+        <span>Qualità <span id="quality-value">80%</span></span>
+        <input type="range" id="quality-slider" min="0.4" max="0.95" step="0.05" value="0.8">
+      </label>
+    </div>
+    <div class="batch-actions">
+      <span id="batch-count" class="batch-count">0 immagini</span>
+      <button id="download-all-btn" class="btn-primary" type="button">
+        <span>Scarica tutte (ZIP)</span>
+      </button>
+      <button id="clear-all-btn" class="btn-ghost" type="button">Rimuovi tutte</button>
+    </div>
+  </section>
+
+  <p id="zip-progress" class="zip-progress" hidden></p>
+
+  <section id="cards-grid" class="cards-grid"></section>
+
+</main>
+
+<footer class="app-footer">
+  <span>Lenza · powered by Claude</span>
+</footer>
+
+<template id="card-template">
+  <article class="crop-card">
+    <div class="crop-card-head">
+      <div class="crop-card-name" data-role="filename">nome-file.jpg</div>
+      <button class="card-remove" type="button" title="Rimuovi immagine" aria-label="Rimuovi immagine">✕</button>
+    </div>
+    <div class="crop-frame" data-role="frame">
+      <img data-role="img" alt="" draggable="false">
+    </div>
+    <div class="crop-card-controls">
+      <input type="range" data-role="zoom" min="1" max="5" step="0.01" value="1" aria-label="Zoom">
+    </div>
+    <div class="crop-card-actions">
+      <button class="btn-chip" data-role="auto-center-btn" type="button" title="Centra e zooma automaticamente sul prodotto">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 3v3.5M12 17.5V21M3 12h3.5M17.5 12H21M12 6.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z" stroke="currentColor" stroke-width="1.6"/></svg>
+        <span>Centra su soggetto</span>
+      </button>
+      <button class="btn-chip" data-role="white-bg-btn" type="button" aria-pressed="false" title="Uniforma lo sfondo verso il bianco. Funziona meglio su sfondi chiari e tendenzialmente uniformi; su sfondi molto complessi (legno, texture, più colori) il risultato può non essere pulito.">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M8 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span>Sfondo bianco</span>
+      </button>
+    </div>
+    <div class="crop-card-foot">
+      <img class="output-thumb" data-role="output-thumb" alt="Anteprima del risultato" hidden>
+      <div class="crop-card-sizes">
+        <span data-role="original-size">— KB</span>
+        <span class="size-arrow">→</span>
+        <span data-role="output-size" class="size-output">850×566 · calcolo…</span>
+      </div>
+      <button class="btn-secondary" data-role="download-btn" type="button">Scarica</button>
+    </div>
+  </article>
+</template>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="image-tool.js"></script>
+</body>
+</html>
