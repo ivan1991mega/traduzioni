@@ -4,8 +4,9 @@ const ANALYSIS_SIZE = 220;
 const BG_THRESHOLD = 32;
 const SUBJECT_PADDING = 1.18;
 const MAX_ZOOM = 5;
-const WHITE_BG_INNER_T = 22;
-const WHITE_BG_OUTER_T = 78;
+const WHITE_BG_DEFAULT_INTENSITY = 78;
+const WHITE_BG_RAMP = 56;
+const WHITE_BG_PROTECT_BONUS = 45;
 
 const themeToggle = document.getElementById('theme-toggle');
 const dropzone = document.getElementById('dropzone');
@@ -117,12 +118,14 @@ function addImageItem(file) {
     offsetY: 0,
     detection: null,
     whiteBackground: false,
+    whiteBgIntensity: WHITE_BG_DEFAULT_INTENSITY,
     node,
     frameEl: node.querySelector('[data-role="frame"]'),
     imgEl: node.querySelector('[data-role="img"]'),
     zoomEl: node.querySelector('[data-role="zoom"]'),
     autoCenterBtn: node.querySelector('[data-role="auto-center-btn"]'),
     whiteBgBtn: node.querySelector('[data-role="white-bg-btn"]'),
+    whiteBgIntensityEl: node.querySelector('[data-role="white-bg-intensity"]'),
     outputSizeEl: node.querySelector('[data-role="output-size"]'),
     outputThumbEl: node.querySelector('[data-role="output-thumb"]'),
     debounceTimer: null
@@ -160,6 +163,16 @@ function addImageItem(file) {
     item.whiteBgBtn.addEventListener('click', () => {
       item.whiteBackground = !item.whiteBackground;
       item.whiteBgBtn.setAttribute('aria-pressed', item.whiteBackground ? 'true' : 'false');
+      if (item.whiteBgIntensityEl) {
+        item.whiteBgIntensityEl.hidden = !item.whiteBackground;
+      }
+      schedulePreview(item);
+    });
+  }
+
+  if (item.whiteBgIntensityEl) {
+    item.whiteBgIntensityEl.addEventListener('input', () => {
+      item.whiteBgIntensity = parseFloat(item.whiteBgIntensityEl.value);
       schedulePreview(item);
     });
   }
@@ -414,35 +427,157 @@ function applyAutoCenter(item, opts) {
 
 // ---------------- Sfondo bianco uniforme ----------------
 //
-// Stima il colore di sfondo dal bordo del RITAGLIO gia' centrato (non della
-// foto intera) e lo uniforma verso il bianco puro, con una zona di transizione
-// morbida per evitare bordi netti/frastagliati attorno al prodotto. E'
-// un'euristica basata sul colore, non un vero riconoscimento del soggetto:
-// funziona bene su sfondi chiari/tendenzialmente uniformi anche se non
-// perfetti, ma non su sfondi molto complessi o dai colori simili al prodotto.
-function applyWhiteBackground(ctx, w, h) {
+// Versione avanzata: invece di un unico colore di sfondo "medio" per tutta
+// la foto, stima come lo sfondo varia punto per punto (utile quando la luce
+// non e' perfettamente uniforme). Individua inoltre l'area del prodotto e la
+// protegge con soglie piu' severe, per non erodere parti chiare/riflettenti
+// del prodotto scambiandole per sfondo.
+
+function solve3x3(M) {
+  const A = M.map((row) => row.slice());
+  for (let i = 0; i < 3; i++) {
+    let maxRow = i;
+    for (let k = i + 1; k < 3; k++) {
+      if (Math.abs(A[k][i]) > Math.abs(A[maxRow][i])) maxRow = k;
+    }
+    [A[i], A[maxRow]] = [A[maxRow], A[i]];
+    if (Math.abs(A[i][i]) < 1e-6) return null;
+    for (let k = i + 1; k < 3; k++) {
+      const f = A[k][i] / A[i][i];
+      for (let j = i; j < 4; j++) A[k][j] -= f * A[i][j];
+    }
+  }
+  const x = [0, 0, 0];
+  for (let i = 2; i >= 0; i--) {
+    let sum = A[i][3];
+    for (let j = i + 1; j < 3; j++) sum -= A[i][j] * x[j];
+    x[i] = sum / A[i][i];
+  }
+  return x;
+}
+
+// Interpola il colore di sfondo atteso in ogni punto (x,y) come un piano
+// (a + b*x + c*y), stimato per regressione dai pixel del bordo. Cattura bene
+// i gradienti di luce tipici delle foto "quasi uniformi ma non perfette".
+function fitBackgroundPlane(data, w, h) {
+  const marginX = Math.max(1, Math.round(w * 0.04));
+  const marginY = Math.max(1, Math.round(h * 0.04));
+  const step = Math.max(1, Math.round(Math.max(w, h) / 140));
+
+  let n = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+  let scRs = 0, scGs = 0, scBs = 0, sxcR = 0, sxcG = 0, sxcB = 0, sycR = 0, sycG = 0, sycB = 0;
+
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      if (x < marginX || x >= w - marginX || y < marginY || y >= h - marginY) {
+        const idx = (y * w + x) * 4;
+        const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+        n++; sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+        scRs += r; scGs += g; scBs += b;
+        sxcR += x * r; sxcG += x * g; sxcB += x * b;
+        sycR += y * r; sycG += y * g; sycB += y * b;
+      }
+    }
+  }
+  if (n < 10) return null;
+
+  const base = [[n, sx, sy], [sx, sxx, sxy], [sy, sxy, syy]];
+  const coefR = solve3x3([base[0].concat(scRs), base[1].concat(sxcR), base[2].concat(sycR)]);
+  const coefG = solve3x3([base[0].concat(scGs), base[1].concat(sxcG), base[2].concat(sycG)]);
+  const coefB = solve3x3([base[0].concat(scBs), base[1].concat(sxcB), base[2].concat(sycB)]);
+  if (!coefR || !coefG || !coefB) return null;
+
+  return { coefR, coefG, coefB };
+}
+
+function planeAt(coef, x, y) {
+  return clamp(coef[0] + coef[1] * x + coef[2] * y, 0, 255);
+}
+
+function applyWhiteBackground(ctx, w, h, intensity) {
+  const outerT = intensity || WHITE_BG_DEFAULT_INTENSITY;
+  const innerT = Math.max(6, outerT - WHITE_BG_RAMP);
+  const outerTProtected = outerT + WHITE_BG_PROTECT_BONUS;
+  const innerTProtected = Math.max(outerT - 8, innerT + 16);
+
   const imgData = ctx.getImageData(0, 0, w, h);
   const data = imgData.data;
-  const bg = estimateBorderColor(data, w, h);
-  if (!bg) return;
 
-  for (let i = 0; i < data.length; i += 4) {
-    const dr = data[i] - bg[0];
-    const dg = data[i + 1] - bg[1];
-    const db = data[i + 2] - bg[2];
-    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+  const plane = fitBackgroundPlane(data, w, h);
+  const fallbackBg = plane ? null : estimateBorderColor(data, w, h);
+  if (!plane && !fallbackBg) return;
 
-    if (dist <= WHITE_BG_INNER_T) {
-      data[i] = 255;
-      data[i + 1] = 255;
-      data[i + 2] = 255;
-    } else if (dist < WHITE_BG_OUTER_T) {
-      const keep = (dist - WHITE_BG_INNER_T) / (WHITE_BG_OUTER_T - WHITE_BG_INNER_T);
-      data[i] = Math.round(255 * (1 - keep) + data[i] * keep);
-      data[i + 1] = Math.round(255 * (1 - keep) + data[i + 1] * keep);
-      data[i + 2] = Math.round(255 * (1 - keep) + data[i + 2] * keep);
+  function bgAt(x, y) {
+    if (plane) {
+      return [planeAt(plane.coefR, x, y), planeAt(plane.coefG, x, y), planeAt(plane.coefB, x, y)];
     }
-    // oltre la soglia esterna: probabile soggetto, pixel invariato
+    return fallbackBg;
+  }
+
+  // Passata 1: distanza dallo sfondo locale + proiezioni riga/colonna per individuare
+  // l'area del prodotto da proteggere (stessa tecnica del rilevamento soggetto).
+  const distMap = new Float32Array(w * h);
+  const rowSum = new Float32Array(h);
+  const colSum = new Float32Array(w);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      const bg = bgAt(x, y);
+      const dr = data[idx] - bg[0];
+      const dg = data[idx + 1] - bg[1];
+      const db = data[idx + 2] - bg[2];
+      const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+      distMap[y * w + x] = dist;
+      if (dist > outerT) {
+        rowSum[y]++;
+        colSum[x]++;
+      }
+    }
+  }
+
+  const minColFrac = h * 0.015;
+  const minRowFrac = w * 0.015;
+  let minX = -1, maxX = -1, minY = -1, maxY = -1;
+  for (let x = 0; x < w; x++) {
+    if (colSum[x] > minColFrac) { if (minX === -1) minX = x; maxX = x; }
+  }
+  for (let y = 0; y < h; y++) {
+    if (rowSum[y] > minRowFrac) { if (minY === -1) minY = y; maxY = y; }
+  }
+
+  let protect = null;
+  if (minX !== -1 && minY !== -1 && !(maxX - minX > w * 0.94 && maxY - minY > h * 0.94)) {
+    const padX = (maxX - minX) * 0.06;
+    const padY = (maxY - minY) * 0.06;
+    protect = {
+      minX: Math.max(0, minX - padX),
+      maxX: Math.min(w, maxX + padX),
+      minY: Math.max(0, minY - padY),
+      maxY: Math.min(h, maxY + padY)
+    };
+  }
+
+  // Passata 2: applica lo sbiancamento, con soglie molto piu' severe dentro
+  // l'area protetta del prodotto (per non "mangiarne" le parti chiare).
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      const dist = distMap[y * w + x];
+      const inProtected = protect && x >= protect.minX && x <= protect.maxX && y >= protect.minY && y <= protect.maxY;
+      const oT = inProtected ? outerTProtected : outerT;
+      const iT = inProtected ? innerTProtected : innerT;
+
+      if (dist <= iT) {
+        data[idx] = 255;
+        data[idx + 1] = 255;
+        data[idx + 2] = 255;
+      } else if (dist < oT) {
+        const keep = (dist - iT) / (oT - iT);
+        data[idx] = Math.round(255 * (1 - keep) + data[idx] * keep);
+        data[idx + 1] = Math.round(255 * (1 - keep) + data[idx + 1] * keep);
+        data[idx + 2] = Math.round(255 * (1 - keep) + data[idx + 2] * keep);
+      }
+    }
   }
 
   ctx.putImageData(imgData, 0, 0);
@@ -471,7 +606,7 @@ function exportItem(item, mime, quality) {
     ctx.drawImage(item.imgEl, sx, sy, cropWNat, cropHNat, 0, 0, OUTPUT_W, OUTPUT_H);
 
     if (item.whiteBackground) {
-      applyWhiteBackground(ctx, OUTPUT_W, OUTPUT_H);
+      applyWhiteBackground(ctx, OUTPUT_W, OUTPUT_H, item.whiteBgIntensity);
     }
 
     canvas.toBlob((blob) => resolve(blob), mime, quality);
