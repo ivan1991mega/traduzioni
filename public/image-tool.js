@@ -516,7 +516,7 @@ function applyWhiteBackground(ctx, w, h, intensity) {
 
   // Passata 1: distanza dallo sfondo locale + proiezioni riga/colonna per individuare
   // l'area del prodotto da proteggere (stessa tecnica del rilevamento soggetto).
-  const distMap = new Float32Array(w * h);
+  const rawDist = new Float32Array(w * h);
   const rowSum = new Float32Array(h);
   const colSum = new Float32Array(w);
   for (let y = 0; y < h; y++) {
@@ -527,11 +527,32 @@ function applyWhiteBackground(ctx, w, h, intensity) {
       const dg = data[idx + 1] - bg[1];
       const db = data[idx + 2] - bg[2];
       const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-      distMap[y * w + x] = dist;
+      rawDist[y * w + x] = dist;
       if (dist > outerT) {
         rowSum[y]++;
         colSum[x]++;
       }
+    }
+  }
+
+  // Piccolo livellamento (media 3x3) della mappa distanze: riduce le zone
+  // "a chiazze" dovute a rumore/texture del sensore fotografico, senza
+  // spostare in modo significativo i bordi veri del soggetto.
+  const distMap = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sum = 0, count = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          sum += rawDist[yy * w + xx];
+          count++;
+        }
+      }
+      distMap[y * w + x] = sum / count;
     }
   }
 
@@ -549,23 +570,39 @@ function applyWhiteBackground(ctx, w, h, intensity) {
   if (minX !== -1 && minY !== -1 && !(maxX - minX > w * 0.94 && maxY - minY > h * 0.94)) {
     const padX = (maxX - minX) * 0.06;
     const padY = (maxY - minY) * 0.06;
+    // Il margine di sfumatura e' proporzionale alla dimensione del soggetto,
+    // cosi' la transizione verso le soglie normali e' graduale e non un
+    // confine netto (che produrrebbe i "riquadri" visibili).
+    const feather = Math.max(28, Math.min(maxX - minX, maxY - minY) * 0.18);
     protect = {
       minX: Math.max(0, minX - padX),
       maxX: Math.min(w, maxX + padX),
       minY: Math.max(0, minY - padY),
-      maxY: Math.min(h, maxY + padY)
+      maxY: Math.min(h, maxY + padY),
+      feather
     };
   }
 
-  // Passata 2: applica lo sbiancamento, con soglie molto piu' severe dentro
-  // l'area protetta del prodotto (per non "mangiarne" le parti chiare).
+  // Peso di protezione sfumato: 1 dentro il riquadro del soggetto, 0 oltre il
+  // margine di sfumatura, con una rampa morbida in mezzo (nessun confine netto).
+  function protectWeight(x, y) {
+    if (!protect) return 0;
+    const dx = Math.max(protect.minX - x, 0, x - protect.maxX);
+    const dy = Math.max(protect.minY - y, 0, y - protect.maxY);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    return clamp(1 - dist / protect.feather, 0, 1);
+  }
+
+  // Passata 2: applica lo sbiancamento. Le soglie si spostano gradualmente
+  // verso valori piu' severi avvicinandosi all'area del prodotto, invece di
+  // cambiare di scatto sul bordo del riquadro rilevato.
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
       const dist = distMap[y * w + x];
-      const inProtected = protect && x >= protect.minX && x <= protect.maxX && y >= protect.minY && y <= protect.maxY;
-      const oT = inProtected ? outerTProtected : outerT;
-      const iT = inProtected ? innerTProtected : innerT;
+      const pw = protectWeight(x, y);
+      const oT = outerT + pw * WHITE_BG_PROTECT_BONUS;
+      const iT = innerT + pw * (innerTProtected - innerT);
 
       if (dist <= iT) {
         data[idx] = 255;
