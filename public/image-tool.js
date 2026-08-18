@@ -7,6 +7,12 @@ const MAX_ZOOM = 5;
 const WHITE_BG_DEFAULT_INTENSITY = 78;
 const WHITE_BG_RAMP = 56;
 const WHITE_BG_PROTECT_BONUS = 45;
+const CAPTION_FONT_STACK = "Calibri, 'Segoe UI', Roboto, Arial, sans-serif";
+const CAPTION_STYLES = {
+  white_band: { color: '#FFFFFF', band: 'rgba(10,18,17,0.62)', shadow: false },
+  black_band: { color: '#141414', band: 'rgba(255,255,255,0.72)', shadow: false },
+  white_shadow: { color: '#FFFFFF', band: null, shadow: true }
+};
 
 const themeToggle = document.getElementById('theme-toggle');
 const dropzone = document.getElementById('dropzone');
@@ -21,6 +27,12 @@ const qualityValue = document.getElementById('quality-value');
 const downloadAllBtn = document.getElementById('download-all-btn');
 const clearAllBtn = document.getElementById('clear-all-btn');
 const zipProgress = document.getElementById('zip-progress');
+const batchWhiteToggle = document.getElementById('batch-white-toggle');
+const batchWhiteIntensity = document.getElementById('batch-white-intensity');
+const batchWhiteValue = document.getElementById('batch-white-value');
+const applyAllBtn = document.getElementById('apply-all-btn');
+
+let batchWhiteEnabled = false;
 
 let items = [];
 let nextId = 1;
@@ -119,6 +131,7 @@ function addImageItem(file) {
     detection: null,
     whiteBackground: false,
     whiteBgIntensity: WHITE_BG_DEFAULT_INTENSITY,
+    caption: { text: '', position: 'bottom', style: 'white_band', size: 6 },
     node,
     frameEl: node.querySelector('[data-role="frame"]'),
     imgEl: node.querySelector('[data-role="img"]'),
@@ -126,6 +139,15 @@ function addImageItem(file) {
     autoCenterBtn: node.querySelector('[data-role="auto-center-btn"]'),
     whiteBgBtn: node.querySelector('[data-role="white-bg-btn"]'),
     whiteBgIntensityEl: node.querySelector('[data-role="white-bg-intensity"]'),
+    captionBtn: node.querySelector('[data-role="caption-btn"]'),
+    captionPanel: node.querySelector('[data-role="caption-panel"]'),
+    captionTextInput: node.querySelector('[data-role="caption-text-input"]'),
+    captionStyleSelect: node.querySelector('[data-role="caption-style-select"]'),
+    captionSizeSlider: node.querySelector('[data-role="caption-size"]'),
+    captionPosButtons: node.querySelectorAll('[data-role="caption-pos"]'),
+    captionOverlayEl: node.querySelector('[data-role="caption-overlay"]'),
+    captionBandEl: node.querySelector('[data-role="caption-band"]'),
+    captionTextEl: node.querySelector('[data-role="caption-text"]'),
     outputSizeEl: node.querySelector('[data-role="output-size"]'),
     outputThumbEl: node.querySelector('[data-role="output-thumb"]'),
     debounceTimer: null
@@ -140,6 +162,7 @@ function addImageItem(file) {
     item.imgEl.src = url;
     item.detection = detectSubject(img, item.naturalW, item.naturalH);
     applyAutoCenter(item, { silent: true });
+    renderCaption(item);
   };
   img.onerror = () => {
     item.outputSizeEl.textContent = 'immagine non leggibile';
@@ -177,10 +200,53 @@ function addImageItem(file) {
     });
   }
 
+  if (item.captionBtn) {
+    item.captionBtn.addEventListener('click', () => {
+      const showing = item.captionPanel && !item.captionPanel.hidden;
+      if (item.captionPanel) item.captionPanel.hidden = showing;
+      item.captionBtn.setAttribute('aria-pressed', showing ? 'false' : 'true');
+    });
+  }
+
+  if (item.captionTextInput) {
+    item.captionTextInput.addEventListener('input', () => {
+      item.caption.text = item.captionTextInput.value;
+      renderCaption(item);
+      schedulePreview(item);
+    });
+  }
+
+  if (item.captionStyleSelect) {
+    item.captionStyleSelect.addEventListener('change', () => {
+      item.caption.style = item.captionStyleSelect.value;
+      renderCaption(item);
+      schedulePreview(item);
+    });
+  }
+
+  if (item.captionSizeSlider) {
+    item.captionSizeSlider.addEventListener('input', () => {
+      item.caption.size = parseFloat(item.captionSizeSlider.value);
+      renderCaption(item);
+      schedulePreview(item);
+    });
+  }
+
+  if (item.captionPosButtons) {
+    item.captionPosButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        item.caption.position = btn.dataset.pos;
+        item.captionPosButtons.forEach((b) => b.classList.toggle('active', b === btn));
+        renderCaption(item);
+        schedulePreview(item);
+      });
+    });
+  }
+
   node.querySelector('.card-remove').addEventListener('click', () => removeItem(item));
   node.querySelector('[data-role="download-btn"]').addEventListener('click', () => downloadSingle(item));
 
-  window.addEventListener('resize', () => render(item));
+  window.addEventListener('resize', () => { render(item); renderCaption(item); });
 
   items.push(item);
   updateBatchBar();
@@ -210,6 +276,47 @@ function updateBatchBar() {
   batchCount.textContent = `${items.length} immagine${items.length === 1 ? '' : 'i'}`;
 }
 
+// ---------------- Applica impostazioni a tutte le foto ----------------
+//
+// Centra e zooma ciascuna foto sul proprio soggetto rilevato (ognuna sul
+// proprio, non un'unica inquadratura per tutte) e applica a tutte lo stesso
+// sfondo bianco con la stessa intensita', in un solo passaggio.
+
+if (batchWhiteToggle) {
+  batchWhiteToggle.addEventListener('click', () => {
+    batchWhiteEnabled = !batchWhiteEnabled;
+    batchWhiteToggle.setAttribute('aria-pressed', batchWhiteEnabled ? 'true' : 'false');
+  });
+}
+
+if (batchWhiteIntensity) {
+  batchWhiteIntensity.addEventListener('input', () => {
+    batchWhiteValue.textContent = batchWhiteIntensity.value;
+  });
+}
+
+if (applyAllBtn) {
+  applyAllBtn.addEventListener('click', () => {
+    if (!items.length) return;
+    const intensity = parseFloat(batchWhiteIntensity.value);
+
+    items.forEach((item) => {
+      applyAutoCenter(item);
+
+      item.whiteBackground = batchWhiteEnabled;
+      item.whiteBgIntensity = intensity;
+      if (item.whiteBgBtn) {
+        item.whiteBgBtn.setAttribute('aria-pressed', batchWhiteEnabled ? 'true' : 'false');
+      }
+      if (item.whiteBgIntensityEl) {
+        item.whiteBgIntensityEl.value = intensity;
+        item.whiteBgIntensityEl.hidden = !batchWhiteEnabled;
+      }
+      schedulePreview(item);
+    });
+  });
+}
+
 // ---------------- Ritaglio: drag & zoom ----------------
 
 function render(item) {
@@ -231,6 +338,53 @@ function render(item) {
 
   item._frameRect = rect;
   item._scale = scale;
+}
+
+// ---------------- Didascalia: anteprima live ----------------
+//
+// Anteprima CSS che rispecchia esattamente cio' che verra' disegnato sul
+// canvas in fase di esportazione (stessa logica di dimensione/posizione),
+// cosi' l'utente vede subito il risultato mentre scrive.
+
+function renderCaption(item) {
+  const overlay = item.captionOverlayEl;
+  if (!overlay) return;
+
+  const text = (item.caption.text || '').trim();
+  if (!text) {
+    overlay.hidden = true;
+    return;
+  }
+
+  const rect = item.frameEl.getBoundingClientRect();
+  if (!rect.height) return;
+
+  const style = CAPTION_STYLES[item.caption.style] || CAPTION_STYLES.white_band;
+  const fontPx = Math.max(9, rect.height * (item.caption.size / 100));
+
+  overlay.hidden = false;
+  overlay.style.justifyContent =
+    item.caption.position === 'top' ? 'flex-start' : item.caption.position === 'center' ? 'center' : 'flex-end';
+
+  if (item.captionTextEl) {
+    item.captionTextEl.textContent = text;
+    item.captionTextEl.style.fontFamily = CAPTION_FONT_STACK;
+    item.captionTextEl.style.fontSize = fontPx + 'px';
+    item.captionTextEl.style.color = style.color;
+    item.captionTextEl.style.textShadow = style.shadow
+      ? '0 1px 3px rgba(0,0,0,0.55), 0 0 2px rgba(0,0,0,0.4)'
+      : 'none';
+  }
+
+  if (item.captionBandEl) {
+    if (style.band) {
+      item.captionBandEl.hidden = false;
+      item.captionBandEl.style.background = style.band;
+      item.captionBandEl.style.padding = `${fontPx * 0.35}px ${fontPx * 0.55}px`;
+    } else {
+      item.captionBandEl.hidden = true;
+    }
+  }
 }
 
 function setupDrag(item) {
@@ -620,6 +774,100 @@ function applyWhiteBackground(ctx, w, h, intensity) {
   ctx.putImageData(imgData, 0, 0);
 }
 
+// ---------------- Didascalia: disegno su canvas (export) ----------------
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Disegna la didascalia sul canvas finale, con la stessa logica (font, taglia,
+// posizione) usata nell'anteprima CSS in renderCaption(), cosi' il risultato
+// scaricato corrisponde a cio' che si vedeva mentre si scriveva.
+function drawCaption(ctx, w, h, caption) {
+  const text = (caption.text || '').trim();
+  if (!text) return;
+
+  const style = CAPTION_STYLES[caption.style] || CAPTION_STYLES.white_band;
+  const fontPx = Math.max(9, h * (caption.size / 100));
+  const marginFrac = 0.045;
+  const paddingX = fontPx * 0.55;
+  const paddingY = fontPx * 0.35;
+  const lineHeight = fontPx * 1.25;
+
+  ctx.font = `600 ${fontPx}px ${CAPTION_FONT_STACK}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+
+  const maxTextWidth = w * (1 - marginFrac * 2) - paddingX * 2;
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (current && ctx.measureText(test).width > maxTextWidth) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  if (!lines.length) return;
+
+  const blockHeight = lines.length * lineHeight;
+  const widestLine = Math.max(...lines.map((l) => ctx.measureText(l).width));
+  const blockWidth = Math.min(maxTextWidth, widestLine) + paddingX * 2;
+
+  let centerY;
+  if (caption.position === 'top') {
+    centerY = h * marginFrac + paddingY + blockHeight / 2;
+  } else if (caption.position === 'center') {
+    centerY = h / 2;
+  } else {
+    centerY = h * (1 - marginFrac) - paddingY - blockHeight / 2;
+  }
+  const centerX = w / 2;
+
+  if (style.band) {
+    ctx.fillStyle = style.band;
+    roundRectPath(
+      ctx,
+      centerX - blockWidth / 2,
+      centerY - blockHeight / 2 - paddingY,
+      blockWidth,
+      blockHeight + paddingY * 2,
+      Math.min(10, fontPx * 0.3)
+    );
+    ctx.fill();
+  }
+
+  ctx.fillStyle = style.color;
+  if (style.shadow) {
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = fontPx * 0.22;
+    ctx.shadowOffsetY = fontPx * 0.06;
+  } else {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  lines.forEach((line, i) => {
+    const baselineY = centerY - blockHeight / 2 + lineHeight * (i + 1) - lineHeight * 0.22;
+    ctx.fillText(line, centerX, baselineY);
+  });
+
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+}
+
 // ---------------- Export su canvas ----------------
 
 function exportItem(item, mime, quality) {
@@ -644,6 +892,10 @@ function exportItem(item, mime, quality) {
 
     if (item.whiteBackground) {
       applyWhiteBackground(ctx, OUTPUT_W, OUTPUT_H, item.whiteBgIntensity);
+    }
+
+    if (item.caption) {
+      drawCaption(ctx, OUTPUT_W, OUTPUT_H, item.caption);
     }
 
     canvas.toBlob((blob) => resolve(blob), mime, quality);
