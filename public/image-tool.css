@@ -88,6 +88,12 @@
 
 .batch-field-quality { min-width: 160px; }
 
+.batch-controls-apply {
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px dashed var(--color-line);
+}
+
 .batch-actions {
   display: flex;
   align-items: center;
@@ -180,6 +186,30 @@
   pointer-events: none;
 }
 
+.caption-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4.5%;
+  pointer-events: none;
+}
+
+.caption-band {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.caption-text {
+  display: block;
+  text-align: center;
+  line-height: 1.25;
+  word-break: break-word;
+  font-weight: 600;
+}
+
 .crop-card-controls {
   padding: 10px 12px 4px;
 }
@@ -234,6 +264,79 @@
   width: 100%;
   margin-top: 4px;
   flex-basis: 100%;
+}
+
+.caption-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 10px;
+}
+
+.caption-text-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 44px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 8px 10px;
+}
+
+.caption-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.caption-pos-group {
+  display: flex;
+  gap: 4px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.caption-pos-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.caption-pos-btn.active {
+  background: var(--color-brass);
+  color: #221604;
+}
+
+.caption-style-select {
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  padding: 0 6px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.caption-size-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-ink-soft);
 }
 
 .crop-card-foot {
