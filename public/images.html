@@ -104,6 +104,7 @@
       <div class="caption-overlay" data-role="caption-overlay" hidden>
         <div class="caption-band" data-role="caption-band" hidden>
           <span class="caption-text" data-role="caption-text"></span>
+          <span class="caption-resize-handle" data-role="caption-resize-handle" title="Trascina per ridimensionare"></span>
         </div>
       </div>
     </div>
@@ -128,21 +129,14 @@
     <div class="caption-panel" data-role="caption-panel" hidden>
       <textarea class="caption-text-input" data-role="caption-text-input" rows="2" maxlength="120" placeholder="Scrivi qui la scritta da sovrapporre alla foto…"></textarea>
       <div class="caption-panel-row">
-        <div class="caption-pos-group" role="group" aria-label="Posizione testo">
-          <button type="button" class="caption-pos-btn" data-role="caption-pos" data-pos="top">Alto</button>
-          <button type="button" class="caption-pos-btn" data-role="caption-pos" data-pos="center">Centro</button>
-          <button type="button" class="caption-pos-btn active" data-role="caption-pos" data-pos="bottom">Basso</button>
-        </div>
         <select class="caption-style-select" data-role="caption-style-select" aria-label="Stile testo">
           <option value="white_band">Bianco su banda scura</option>
           <option value="black_band">Nero su banda chiara</option>
           <option value="white_shadow">Bianco con ombra</option>
         </select>
+        <button type="button" class="btn-chip" data-role="caption-reset-btn">Reimposta</button>
       </div>
-      <label class="caption-size-row">
-        <span>Dimensione testo</span>
-        <input type="range" data-role="caption-size" min="3" max="12" step="0.5" value="6" aria-label="Dimensione testo">
-      </label>
+      <p class="caption-hint">Trascina il testo sulla foto per spostarlo, trascina il pallino per ridimensionarlo.</p>
     </div>
     <div class="crop-card-foot">
       <img class="output-thumb" data-role="output-thumb" alt="Anteprima del risultato" hidden>
