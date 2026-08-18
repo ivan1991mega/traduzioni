@@ -189,17 +189,21 @@
 .caption-overlay {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 4.5%;
   pointer-events: none;
 }
 
 .caption-band {
-  max-width: 100%;
+  position: absolute;
+  max-width: 88%;
   border-radius: 6px;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.caption-band:active {
+  cursor: grabbing;
 }
 
 .caption-text {
@@ -208,6 +212,21 @@
   line-height: 1.25;
   word-break: break-word;
   font-weight: 600;
+  white-space: pre-wrap;
+}
+
+.caption-resize-handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-brass);
+  border: 2px solid #fff;
+  cursor: nwse-resize;
+  pointer-events: auto;
+  touch-action: none;
 }
 
 .crop-card-controls {
@@ -294,28 +313,11 @@
   flex-wrap: wrap;
 }
 
-.caption-pos-group {
-  display: flex;
-  gap: 4px;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  padding: 3px;
-}
-
-.caption-pos-btn {
-  border: none;
-  background: transparent;
-  color: var(--color-ink-soft);
+.caption-hint {
+  margin: 0;
   font-size: 0.72rem;
-  font-family: var(--font-mono);
-  padding: 4px 10px;
-  border-radius: 999px;
-}
-
-.caption-pos-btn.active {
-  background: var(--color-brass);
-  color: #221604;
+  color: var(--color-ink-soft);
+  line-height: 1.4;
 }
 
 .caption-style-select {
@@ -328,15 +330,6 @@
   padding: 0 6px;
   flex: 1;
   min-width: 150px;
-}
-
-.caption-size-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  color: var(--color-ink-soft);
 }
 
 .crop-card-foot {
