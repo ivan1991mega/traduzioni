@@ -13,6 +13,11 @@ const CAPTION_STYLES = {
   black_band: { color: '#141414', band: 'rgba(255,255,255,0.72)', shadow: false },
   white_shadow: { color: '#FFFFFF', band: null, shadow: true }
 };
+const CAPTION_DEFAULT_SIZE = 1.2;
+const CAPTION_MIN_SIZE = 0.8;
+const CAPTION_MAX_SIZE = 16;
+const CAPTION_DEFAULT_FX = 0.5;
+const CAPTION_DEFAULT_FY = 0.86;
 
 const themeToggle = document.getElementById('theme-toggle');
 const dropzone = document.getElementById('dropzone');
@@ -131,7 +136,7 @@ function addImageItem(file) {
     detection: null,
     whiteBackground: false,
     whiteBgIntensity: WHITE_BG_DEFAULT_INTENSITY,
-    caption: { text: '', position: 'bottom', style: 'white_band', size: 6 },
+    caption: { text: '', style: 'white_band', fx: CAPTION_DEFAULT_FX, fy: CAPTION_DEFAULT_FY, size: CAPTION_DEFAULT_SIZE },
     node,
     frameEl: node.querySelector('[data-role="frame"]'),
     imgEl: node.querySelector('[data-role="img"]'),
@@ -143,11 +148,11 @@ function addImageItem(file) {
     captionPanel: node.querySelector('[data-role="caption-panel"]'),
     captionTextInput: node.querySelector('[data-role="caption-text-input"]'),
     captionStyleSelect: node.querySelector('[data-role="caption-style-select"]'),
-    captionSizeSlider: node.querySelector('[data-role="caption-size"]'),
-    captionPosButtons: node.querySelectorAll('[data-role="caption-pos"]'),
+    captionResetBtn: node.querySelector('[data-role="caption-reset-btn"]'),
     captionOverlayEl: node.querySelector('[data-role="caption-overlay"]'),
     captionBandEl: node.querySelector('[data-role="caption-band"]'),
     captionTextEl: node.querySelector('[data-role="caption-text"]'),
+    captionResizeHandleEl: node.querySelector('[data-role="caption-resize-handle"]'),
     outputSizeEl: node.querySelector('[data-role="output-size"]'),
     outputThumbEl: node.querySelector('[data-role="output-thumb"]'),
     debounceTimer: null
@@ -224,24 +229,17 @@ function addImageItem(file) {
     });
   }
 
-  if (item.captionSizeSlider) {
-    item.captionSizeSlider.addEventListener('input', () => {
-      item.caption.size = parseFloat(item.captionSizeSlider.value);
+  if (item.captionResetBtn) {
+    item.captionResetBtn.addEventListener('click', () => {
+      item.caption.fx = CAPTION_DEFAULT_FX;
+      item.caption.fy = CAPTION_DEFAULT_FY;
+      item.caption.size = CAPTION_DEFAULT_SIZE;
       renderCaption(item);
       schedulePreview(item);
     });
   }
 
-  if (item.captionPosButtons) {
-    item.captionPosButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        item.caption.position = btn.dataset.pos;
-        item.captionPosButtons.forEach((b) => b.classList.toggle('active', b === btn));
-        renderCaption(item);
-        schedulePreview(item);
-      });
-    });
-  }
+  setupCaptionDrag(item);
 
   node.querySelector('.card-remove').addEventListener('click', () => removeItem(item));
   node.querySelector('[data-role="download-btn"]').addEventListener('click', () => downloadSingle(item));
@@ -357,14 +355,21 @@ function renderCaption(item) {
   }
 
   const rect = item.frameEl.getBoundingClientRect();
-  if (!rect.height) return;
+  if (!rect.width || !rect.height) return;
 
   const style = CAPTION_STYLES[item.caption.style] || CAPTION_STYLES.white_band;
-  const fontPx = Math.max(9, rect.height * (item.caption.size / 100));
+  const fontPx = Math.max(8, rect.height * (item.caption.size / 100));
 
   overlay.hidden = false;
-  overlay.style.justifyContent =
-    item.caption.position === 'top' ? 'flex-start' : item.caption.position === 'center' ? 'center' : 'flex-end';
+
+  const band = item.captionBandEl;
+  if (band) {
+    band.hidden = false;
+    band.style.left = `${item.caption.fx * 100}%`;
+    band.style.top = `${item.caption.fy * 100}%`;
+    band.style.background = style.band || 'transparent';
+    band.style.padding = style.band ? `${fontPx * 0.35}px ${fontPx * 0.55}px` : '2px';
+  }
 
   if (item.captionTextEl) {
     item.captionTextEl.textContent = text;
@@ -375,15 +380,79 @@ function renderCaption(item) {
       ? '0 1px 3px rgba(0,0,0,0.55), 0 0 2px rgba(0,0,0,0.4)'
       : 'none';
   }
+}
 
-  if (item.captionBandEl) {
-    if (style.band) {
-      item.captionBandEl.hidden = false;
-      item.captionBandEl.style.background = style.band;
-      item.captionBandEl.style.padding = `${fontPx * 0.35}px ${fontPx * 0.55}px`;
-    } else {
-      item.captionBandEl.hidden = true;
-    }
+// Trascinamento libero della didascalia (spostamento) e ridimensionamento
+// tramite la maniglia nell'angolo, direttamente sulla foto.
+function setupCaptionDrag(item) {
+  const band = item.captionBandEl;
+  const handle = item.captionResizeHandleEl;
+  if (!band) return;
+
+  let mode = null;
+  let startX = 0, startY = 0;
+  let startFx = 0, startFy = 0, startSize = 0;
+
+  band.addEventListener('pointerdown', (e) => {
+    if (handle && (e.target === handle || handle.contains(e.target))) return;
+    mode = 'move';
+    startX = e.clientX;
+    startY = e.clientY;
+    startFx = item.caption.fx;
+    startFy = item.caption.fy;
+    band.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  band.addEventListener('pointermove', (e) => {
+    if (mode !== 'move') return;
+    const rect = item.frameEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const dx = (e.clientX - startX) / rect.width;
+    const dy = (e.clientY - startY) / rect.height;
+    item.caption.fx = clamp(startFx + dx, 0.04, 0.96);
+    item.caption.fy = clamp(startFy + dy, 0.04, 0.96);
+    renderCaption(item);
+  });
+
+  ['pointerup', 'pointercancel'].forEach((evt) => {
+    band.addEventListener(evt, () => {
+      if (mode === 'move') {
+        mode = null;
+        schedulePreview(item);
+      }
+    });
+  });
+
+  if (handle) {
+    handle.addEventListener('pointerdown', (e) => {
+      mode = 'resize';
+      startX = e.clientX;
+      startY = e.clientY;
+      startSize = item.caption.size;
+      handle.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (mode !== 'resize') return;
+      const rect = item.frameEl.getBoundingClientRect();
+      if (!rect.height) return;
+      const delta = (e.clientX - startX + (e.clientY - startY)) / 2;
+      const deltaPct = (delta / rect.height) * 100;
+      item.caption.size = clamp(startSize + deltaPct, CAPTION_MIN_SIZE, CAPTION_MAX_SIZE);
+      renderCaption(item);
+    });
+
+    ['pointerup', 'pointercancel'].forEach((evt) => {
+      handle.addEventListener(evt, () => {
+        if (mode === 'resize') {
+          mode = null;
+          schedulePreview(item);
+        }
+      });
+    });
   }
 }
 
@@ -794,17 +863,17 @@ function drawCaption(ctx, w, h, caption) {
   if (!text) return;
 
   const style = CAPTION_STYLES[caption.style] || CAPTION_STYLES.white_band;
-  const fontPx = Math.max(9, h * (caption.size / 100));
-  const marginFrac = 0.045;
+  const fontPx = Math.max(8, h * (caption.size / 100));
   const paddingX = fontPx * 0.55;
   const paddingY = fontPx * 0.35;
   const lineHeight = fontPx * 1.25;
+  const edgeMargin = 6;
 
   ctx.font = `600 ${fontPx}px ${CAPTION_FONT_STACK}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
 
-  const maxTextWidth = w * (1 - marginFrac * 2) - paddingX * 2;
+  const maxTextWidth = w * 0.92 - paddingX * 2;
   const words = text.split(/\s+/).filter(Boolean);
   const lines = [];
   let current = '';
@@ -824,15 +893,15 @@ function drawCaption(ctx, w, h, caption) {
   const widestLine = Math.max(...lines.map((l) => ctx.measureText(l).width));
   const blockWidth = Math.min(maxTextWidth, widestLine) + paddingX * 2;
 
-  let centerY;
-  if (caption.position === 'top') {
-    centerY = h * marginFrac + paddingY + blockHeight / 2;
-  } else if (caption.position === 'center') {
-    centerY = h / 2;
-  } else {
-    centerY = h * (1 - marginFrac) - paddingY - blockHeight / 2;
-  }
-  const centerX = w / 2;
+  let centerX = clamp(caption.fx, 0, 1) * w;
+  let centerY = clamp(caption.fy, 0, 1) * h;
+
+  // Tiene il blocco di testo dentro i bordi della foto anche se il punto
+  // scelto trascinando e' molto vicino a un lato.
+  const halfW = blockWidth / 2;
+  const halfH = blockHeight / 2 + paddingY;
+  centerX = clamp(centerX, halfW + edgeMargin, w - halfW - edgeMargin);
+  centerY = clamp(centerY, halfH + edgeMargin, h - halfH - edgeMargin);
 
   if (style.band) {
     ctx.fillStyle = style.band;
