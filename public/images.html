@@ -61,6 +61,19 @@
         <input type="range" id="quality-slider" min="0.4" max="0.95" step="0.05" value="0.8">
       </label>
     </div>
+    <div class="batch-controls batch-controls-apply">
+      <button id="batch-white-toggle" class="btn-chip" type="button" aria-pressed="false" title="Se attivo, includera' lo sfondo bianco su ogni foto quando premi 'Applica a tutte'">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M8 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span>Sfondo bianco</span>
+      </button>
+      <label class="batch-field batch-field-quality">
+        <span>Intensità <span id="batch-white-value">78</span></span>
+        <input type="range" id="batch-white-intensity" min="40" max="130" step="2" value="78">
+      </label>
+      <button id="apply-all-btn" class="btn-primary" type="button" title="Centra ogni foto sul proprio soggetto rilevato e applica a tutte lo stesso sfondo bianco">
+        <span>Applica a tutte le foto</span>
+      </button>
+    </div>
     <div class="batch-actions">
       <span id="batch-count" class="batch-count">0 immagini</span>
       <button id="download-all-btn" class="btn-primary" type="button">
@@ -88,6 +101,11 @@
     </div>
     <div class="crop-frame" data-role="frame">
       <img data-role="img" alt="" draggable="false">
+      <div class="caption-overlay" data-role="caption-overlay" hidden>
+        <div class="caption-band" data-role="caption-band" hidden>
+          <span class="caption-text" data-role="caption-text"></span>
+        </div>
+      </div>
     </div>
     <div class="crop-card-controls">
       <input type="range" data-role="zoom" min="1" max="5" step="0.01" value="1" aria-label="Zoom">
@@ -102,6 +120,29 @@
         <span>Sfondo bianco</span>
       </button>
       <input type="range" class="white-bg-intensity" data-role="white-bg-intensity" min="40" max="130" step="2" value="78" aria-label="Intensità sfondo bianco" title="Intensità: più alto = sbianca più a fondo, più basso = più conservativo" hidden>
+      <button class="btn-chip" data-role="caption-btn" type="button" aria-pressed="false" title="Aggiungi una scritta sopra la foto">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span>Testo</span>
+      </button>
+    </div>
+    <div class="caption-panel" data-role="caption-panel" hidden>
+      <textarea class="caption-text-input" data-role="caption-text-input" rows="2" maxlength="120" placeholder="Scrivi qui la scritta da sovrapporre alla foto…"></textarea>
+      <div class="caption-panel-row">
+        <div class="caption-pos-group" role="group" aria-label="Posizione testo">
+          <button type="button" class="caption-pos-btn" data-role="caption-pos" data-pos="top">Alto</button>
+          <button type="button" class="caption-pos-btn" data-role="caption-pos" data-pos="center">Centro</button>
+          <button type="button" class="caption-pos-btn active" data-role="caption-pos" data-pos="bottom">Basso</button>
+        </div>
+        <select class="caption-style-select" data-role="caption-style-select" aria-label="Stile testo">
+          <option value="white_band">Bianco su banda scura</option>
+          <option value="black_band">Nero su banda chiara</option>
+          <option value="white_shadow">Bianco con ombra</option>
+        </select>
+      </div>
+      <label class="caption-size-row">
+        <span>Dimensione testo</span>
+        <input type="range" data-role="caption-size" min="3" max="12" step="0.5" value="6" aria-label="Dimensione testo">
+      </label>
     </div>
     <div class="crop-card-foot">
       <img class="output-thumb" data-role="output-thumb" alt="Anteprima del risultato" hidden>
